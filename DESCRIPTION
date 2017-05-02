@@ -1,0 +1,13 @@
+Package: vroomen07
+Title: Incremental recalibration data from Vroomen et al. (2007)
+Version: 0.0.0.9000
+Authors@R: person("Dave", "Kleinschmidt", email = "dave.f.kleinschmidt@gmail.com", role = c("aut", "cre"))
+Description: Data provided by Jean Vroomen, from experiment described in:
+     Vroomen, J., van Linden, S., de Gelder, B., & Bertelson, P. (2007). Visual
+     recalibration and selective adaptation in auditory-visual speech
+     perception: Contrasting build-up courses. Neuropsychologia, 45(3),
+     572–7. https://doi.org/10.1016/j.neuropsychologia.2006.01.031
+Depends: R (>= 3.4.0)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
