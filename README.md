@@ -51,6 +51,14 @@ vroomen07::pretest
 #> #   subject <dbl>, response_raw <chr>, session <int>
 ```
 
+## Documentation
+
+Datasets are documented in the usual way:
+
+```r
+?vroomen07::adapt
+```
+
 ## Data preparation
 
 See `data-raw/parse_data.Rmd` (or the HTML file generated from that notebook)
