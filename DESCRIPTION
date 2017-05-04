@@ -1,6 +1,6 @@
 Package: vroomen07
 Title: Incremental recalibration data from Vroomen et al. (2007)
-Version: 0.0.0.9000
+Version: 1.0.0
 Authors@R: person("Dave", "Kleinschmidt", email = "dave.f.kleinschmidt@gmail.com", role = c("aut", "cre"))
 Description: Data provided by Jean Vroomen, from experiment described in:
      Vroomen, J., van Linden, S., de Gelder, B., & Bertelson, P. (2007). Visual
