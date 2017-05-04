@@ -222,7 +222,8 @@ adapt <-
   # pull out test stimulus continuum number
   tidyr::extract(movie, "aud", "bd([0-9]*)", convert=TRUE) %>%
   # combine with session metadata (condition, time, and session order)
-  left_join(sessions)
+  left_join(sessions) %>%
+  ungroup()
 
 ```
 
