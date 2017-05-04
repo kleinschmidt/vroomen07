@@ -1,0 +1,238 @@
+---
+title: Processing raw data from Vroomen et al. (2007)
+author: Dave Kleinschmidt
+date: "`r Sys.Date()`"
+---
+
+# Data organization and format
+
+This directory contains the raw data as it came to me, in two batches.  The
+processed data is taken from the `Data I` and `Data 13` subdirectories.  The
+subject numbers for the `Data 13` batch need to be incremented by 16 (e.g.,
+subject 1 in that subdirectory is 17 in the processed dataset) to avoid
+conflicts with the `Data I` subject numbers.
+
+There's one `.dat` data file for each block (two pretest blocks and a number of
+adaptation blocks), with condition information embedded in the filenames.  I'm
+using the _file's_ timestamps to get the order of the individual blocks (since
+that varies across sessions).
+
+Pre-test files have filenames starting with `Pre` or `pre`, and adaptation block
+files have filenames starting with `v[bd]a[1-9]`, the name of the audio-visual
+adaptation stimulus used on that block.
+
+The individual files have the same format.  There are comment lines at the top
+(lines starting with `!`), followed by a data table with one row per stimulus
+and space separated columns for:
+
+  * Trial (number)
+  * Movie (filename)
+  * Response ("Z" or "M", for "b" and "d" responses respectively, and "#" for no
+    response)
+  * Time (seconds with comma decimal. RT?).
+
+# Ingesting raw data
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(forcats)
+library(stringr)
+library(assertthat)
+
+files_pre <- Sys.glob("[dD]ata */[Pp][Rr][Ee]*")
+files_adapt <- Sys.glob("[dD]ata */[Vv]*")
+
+parse_response <- function(resp) {
+  factor(resp, levels=c("Z", "M")) %>% fct_recode(b="Z", d="M")
+}
+
+read_file <- function(fn) {
+  fn %>% 
+    readr::read_table(
+      col_names = c("trial", "movie", "response", "time"),
+      col_types = "iccc",
+      comment = "!"
+    ) %>%
+    ## manually parse time (decimal, sometimes with ',', sometimes with '.')
+    mutate(time = time %>% stringr::str_replace(",", ".") %>% as.double(),
+           source = fn,
+           session_time = file.mtime(fn),
+           source_lower = str_to_lower(source)) %>%
+    tidyr::extract(source_lower, "subject",
+                   regex="pp([0-9]*)",
+                   remove=TRUE, convert=TRUE) %>%
+    mutate(subject = ifelse(str_detect(source, "Data 13"), subject + 16, subject),
+           response_raw = response,
+           response = parse_response(response_raw))
+}
+
+```
+
+# Pretest data
+
+```{r}
+
+dat_pre <-
+  files_pre %>%
+  map(read_file) %>%
+  lift(bind_rows)()
+
+pretest <- dat_pre %>%
+  mutate(source_lower = str_to_lower(source)) %>%
+  tidyr::extract(source_lower, "session", regex="pre([12])",
+                 remove=TRUE, convert=TRUE) %>%
+  tidyr::extract(movie, "aud", "bd([0-9]+)", convert=TRUE, remove=FALSE)
+
+(pretest)
+```
+
+## Pretest sessions
+
+There are two sessions: first with the whole continuum, second with just the
+middle part that will be tested during recalibration
+
+```{r}
+
+ggplot(pretest, aes(x=aud)) +
+  geom_histogram(breaks=seq(0.5,10)) +
+  facet_grid(.~session)
+
+```
+
+## Category boundaries
+
+```{r}
+
+pretest %>%
+  filter(session == 1) %>%
+  ggplot(aes(x=aud, y=as.numeric(response=='b'), group=subject)) +
+  geom_point(stat='summary', fun.y=mean) +
+  stat_smooth(method='glm', method.args=list(family='binomial')) +
+  facet_wrap(~subject)
+
+```
+
+# Adaptation data
+
+```{r}
+
+dat_adapt <-
+  files_adapt %>%
+  map(read_file) %>%
+  lift(bind_rows)()
+
+```
+
+The adaptation data has exposure and test trials mixed together in the same data
+files.  They're distinguished by their `movie` values: exposure movies are
+audio-visual stimuli (starting with "v" or "V", followed by the visual category,
+the audio stimulus number, and (if present) the number of repetitions).  The
+test trials have the same filenames as in the pretest: "bd0[1-9]n.wav".  We need
+to extract the number of repetitions for exposure trials, convert to cumulative
+exposures, and combine with the test trials.  We also need to convert the
+source/movie filenames into the condition variables (ambiguity and visual
+category) and check for consistency.
+
+## Source/movie consistency
+
+```{r}
+
+sessions <-
+  dat_adapt %>%
+  filter(str_detect(movie, "^[vV]")) %>%
+  tidyr::extract(movie, c("movie_vid", "movie_aud"),
+                 "[vV]([bd])a([0-9])", remove=FALSE, convert=TRUE) %>%
+  tidyr::extract(source, c("source_vid", "source_aud"),
+                 "[vV]([bd])a([0-9])", remove=FALSE, convert=TRUE)
+
+mismatches <-
+  sessions %>%
+  group_by(source) %>%
+  summarise_each(funs(unique), matches("(aud|vid)")) %>%
+  filter((movie_vid != source_vid) | (movie_aud != source_aud))
+
+mismatches %>% count(movie_aud, source_aud)
+mismatches %>% count(movie_vid, source_vid)
+
+```
+
+There are quite a few blocks where the movie and source information mismatch.
+Most of these are minor (the file says that `aud` is 5 but the movie is 4 or 6)
+but some are major (a prototypical 1 or 9 instead of an ambiguous 4, 5 or 6, and
+vice-versa).  I'm inclined to trust the movie field since that's formatted
+consistently, leading me to think it was generated by the experiment script,
+instead of the filenames which are much less consistent (and so probably done
+manually).  But we'll want to check the counterbalancing and ordering, too.
+
+```{r}
+
+sessions <-
+  sessions %>%
+  group_by(source, movie_vid, movie_aud, subject, session_time) %>%
+  summarise() %>%
+  rename(exposure_vid = movie_vid, exposure_aud = movie_aud) %>%
+  group_by(subject) %>%
+  mutate(session = rank(session_time),
+         exposure_vid = factor(exposure_vid),
+         ambiguous = factor(ifelse(exposure_aud %in% c(1,9),
+                                   "prototypical",
+                                   "ambiguous"),
+                            levels = c("prototypical", "ambiguous"))) %>%
+  arrange(subject, session)
+
+```
+
+```{r}
+
+sessions %>%
+  ggplot(aes(x=session_time, y=subject)) +
+  geom_point()
+
+```
+
+## Extracting exposure trials
+
+The exposure and test trials are mixed together.  We need to know the cumulative
+exposures for each test trial, so we need to pull out the repetitions on each
+exposure movie and compute a cumulative sum.
+
+```{r}
+
+extract_exposures <- function(movie) {
+  is_exposure <- str_detect(movie, "^[vV]")
+  reps <- str_match(movie, "R([0-9]+)")[, 2] %>% as.double()
+  ifelse(
+    is_exposure,
+    ifelse(
+      is.na(reps),
+      1,
+      reps),
+    0)
+}
+
+## add cumulative exposure counts, conditions, and session info to test trials
+adapt <- 
+  dat_adapt %>%
+  mutate(exposures = extract_exposures(movie)) %>%
+  group_by(source) %>%
+  mutate(exposures = cumsum(exposures)) %>%
+  # get rid of exposure trials
+  filter(!str_detect(movie, "^[vV]")) %>%
+  # pull out test stimulus continuum number
+  tidyr::extract(movie, "aud", "bd([0-9]*)", convert=TRUE) %>%
+  # combine with session metadata (condition, time, and session order)
+  left_join(sessions)
+
+```
+
+# Save it
+
+```{r}
+
+pretest_mid <- pretest %>% filter(session == 2)
+pretest <- pretest %>% filter(session == 1)
+
+devtools::use_data(pretest, pretest_mid, adapt, overwrite=TRUE)
+
+```
