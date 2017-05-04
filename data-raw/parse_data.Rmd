@@ -231,9 +231,9 @@ adapt <-
 
 ```{r}
 
-pretest_mid <- pretest %>% filter(session == 2)
-pretest <- pretest %>% filter(session == 1)
+pretest_ambig <- pretest %>% filter(session == 2) %>% mutate(session=NULL)
+pretest <- pretest %>% filter(session == 1) %>% mutate(session=NULL)
 
-devtools::use_data(pretest, pretest_mid, adapt, overwrite=TRUE)
+devtools::use_data(pretest, pretest_ambig, adapt, overwrite=TRUE)
 
 ```

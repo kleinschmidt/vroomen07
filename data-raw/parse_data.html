@@ -315,17 +315,18 @@ adapt &lt;-
   # pull out test stimulus continuum number
   tidyr::extract(movie, &quot;aud&quot;, &quot;bd([0-9]*)&quot;, convert=TRUE) %&gt;%
   # combine with session metadata (condition, time, and session order)
-  left_join(sessions)</code></pre>
+  left_join(sessions) %&gt;%
+  ungroup()</code></pre>
 <pre><code>## Joining, by = c(&quot;source&quot;, &quot;session_time&quot;, &quot;subject&quot;)</code></pre>
 </div>
 </div>
 <div id="save-it" class="section level1">
 <h1>Save it</h1>
-<pre class="r"><code>pretest_mid &lt;- pretest %&gt;% filter(session == 2)
-pretest &lt;- pretest %&gt;% filter(session == 1)
+<pre class="r"><code>pretest_ambig &lt;- pretest %&gt;% filter(session == 2) %&gt;% mutate(session=NULL)
+pretest &lt;- pretest %&gt;% filter(session == 1) %&gt;% mutate(session=NULL)
 
-devtools::use_data(pretest, pretest_mid, adapt, overwrite=TRUE)</code></pre>
-<pre><code>## Saving pretest, pretest_mid, adapt as pretest.rda, pretest_mid.rda, adapt.rda to /home/dave/data/vroomen07/data</code></pre>
+devtools::use_data(pretest, pretest_ambig, adapt, overwrite=TRUE)</code></pre>
+<pre><code>## Saving pretest, pretest_ambig, adapt as pretest.rda, pretest_ambig.rda, adapt.rda to /home/dave/data/vroomen07/data</code></pre>
 </div>
 
 
